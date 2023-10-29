@@ -1,0 +1,160 @@
+@Article{Athey2019,
+  author       = {Susan Athey and Julie Tibshirani and Stefan Wager},
+  date         = {2019},
+  journaltitle = {Ann. Statist.},
+  title        = {{Generalized Random Forests}},
+  doi          = {10.1214/18-AOS1709},
+  number       = {2},
+  pages        = {1148--1178},
+  volume       = {47},
+  abstract     = {We propose generalized random forests, a method for nonparametric statistical estimation based on random forests (Breiman [Mach. Learn. 45 (2001) 5–32]) that can be used to fit any quantity of interest identified as the solution to a set of local moment equations. Following the literature on local maximum likelihood estimation, our method considers a weighted set of nearby training examples; however, instead of using classical kernel weighting functions that are prone to a strong curse of dimensionality, we use an adaptive weighting function derived from a forest designed to express heterogeneity in the specified quantity of interest. We propose a flexible, computationally efficient algorithm for growing generalized random forests, develop a large sample theory for our method showing that our estimates are consistent and asymptotically Gaussian and provide an estimator for their asymptotic variance that enables valid confidence intervals. We use our approach to develop new methods for three statistical tasks: nonparametric quantile regression, conditional average partial effect estimation and heterogeneous treatment effect estimation via instrumental variables. A software implementation, grf for R and C++, is available from CRAN.},
+}
+
+@Article{Wager2018,
+  author       = {Stefan Wager and Susan Athey},
+  date         = {2018},
+  journaltitle = {Journal of the American Statistical Association},
+  title        = {{Estimation and Inference of Heterogeneous Treatment Effects using Random Forests}},
+  doi          = {10.1080/01621459.2017.1319839},
+  number       = {523},
+  pages        = {1228--1242},
+  volume       = {113},
+}
+
+@Article{Cameron2016,
+  author       = {Drew B. Cameron and Anjini Mishra and Annette N. Brown},
+  date         = {2016},
+  journaltitle = {Journal of Development Effectiveness},
+  title        = {{The Growth Of Impact Evaluation For International Development: How Much Have We Learned?}},
+  doi          = {10.1080/19439342.2015.1034156},
+  number       = {1},
+  pages        = {1--21},
+  volume       = {8},
+}
+
+@Dataset{ARR2022,
+  author    = {{AEA RCT Registry}},
+  date      = {2022},
+  title     = {{Registrations in the AEA RCT Registry}},
+  doi       = {10.7910/DVN/IHSCI6},
+  version   = {V1},
+  publisher = {{Harvard Dataverse}},
+}
+
+@InCollection{Duflo2007,
+  author    = {Esther Duflo and Rachel Glennerster and Michael Kremer},
+  booktitle = {{Handbook of Development Economics}},
+  date      = {2007},
+  title     = {{Using Randomization in Development Economics Research}},
+  doi       = {10.1016/S1573-4471(07)04061-2},
+  editor    = {T. Paul Schultz and John A. Strauss},
+  pages     = {3895--3962},
+  publisher = {Elsevier},
+  subtitle  = {{A Toolkit}},
+}
+
+@Article{Rubin1974,
+  author       = {Donald B. Rubin},
+  date         = {1974},
+  journaltitle = {Journal of Educational Psychology},
+  title        = {{Estimating Causal Effects Of Treatments In Randomized And Nonrandomized Studies}},
+  doi          = {10.1037/h0037350},
+  number       = {5},
+  pages        = {688--701},
+  volume       = {66},
+}
+
+@Article{Rubin1977,
+  author       = {Donald B. Rubin},
+  date         = {1977},
+  journaltitle = {Journal of Educational Statistics},
+  title        = {{Assignment To Treatment Group On The Basis Of A Covariate}},
+  doi          = {10.3102/10769986002001001},
+  number       = {1},
+  pages        = {1--26},
+  volume       = {2},
+}
+
+@Article{Holland1986,
+  author       = {Paul W. Holland},
+  date         = {1986},
+  journaltitle = {Journal of the American Statistical Association},
+  title        = {{Statistics and Causal Inference}},
+  doi          = {10.2307/2289064},
+  number       = {396},
+  pages        = {945--960},
+  volume       = {81},
+}
+
+@Manual{Tibshirani2022,
+  author = {Julie Tibshirani and Susan Athey and Erik Sverdrup and Stefan Wager},
+  title  = {{grf: Generalized Random Forests}},
+  note   = {R package version 2.2.0},
+  url    = {https://CRAN.R-project.org/package=grf},
+  year   = {2022},
+}
+
+@Manual{RCT2022,
+  author       = {{R Core Team}},
+  title        = {{R: A Language and Environment for Statistical Computing}},
+  organization = {R Foundation for Statistical Computing},
+  url          = {https://www.R-project.org/},
+  address      = {Vienna, Austria},
+  year         = {2022},
+}
+
+@Article{Nie2021,
+  author       = {Xinkun Nie and Stefan Wager},
+  date         = {2021},
+  journaltitle = {Biometrika},
+  title        = {{Quasi-oracle Estimation Of Heterogeneous Treatment Effects}},
+  doi          = {10.1093/biomet/asaa076},
+  number       = {2},
+  pages        = {299--319},
+  volume       = {108},
+}
+
+@Manual{Tibshirani2021,
+  author = {Julie Tibshirani and Susan Athey and Erik Sverdrup and Stefan Wager},
+  title  = {{htesim: Conducting Extensive Simulation Studies of Heterogeneous Treatment Effect Estimation}},
+  note   = {R package version 0.0.0.9000},
+  url    = {https://github.com/dandls/htesim},
+  year   = {2021},
+}
+
+@Article{Gazeaud2021,
+  author       = {Jules Gazeaud and Eric Mvukiyehe and Olivier Sterck},
+  date         = {2021},
+  journaltitle = {The Review of Economics and Statistics},
+  title        = {{Cash Transfers and Migration: Theory and Evidence from a Randomized Controlled Trial}},
+  doi          = {10.1162/rest_a_01041},
+  pages        = {1--45},
+  volume       = {Forthcoming},
+}
+
+@Dataset{Gazeaud2021a,
+  author    = {Jules Gazeaud and Eric Mvukiyehe and Olivier Sterck},
+  date      = {2021},
+  title     = {{Replication Data for: Cash Transfers and Migration: Theory and Evidence from a Randomized Controlled Trial}},
+  doi       = {10.7910/DVN/DDVBFE},
+  version   = {V1},
+  publisher = {Harvard Dataverse},
+}
+
+@Article{Dandl2022,
+  author       = {Dandl, Susanne and Hothorn, Torsten and Seibold, Heidi and Sverdrup, Erik and Wager, Stefan and Zeileis, Achim},
+  date         = {2022},
+  journaltitle = {Working Paper},
+  title        = {{What Makes Forest-Based Heterogeneous Treatment Effect Estimators Work?}},
+  doi          = {10.48550/arXiv.2206.10323},
+}
+
+@Article{Gazeaud2021b,
+  author       = {Jules Gazeaud and Eric Mvukiyehe and Olivier Sterck},
+  date         = {2021},
+  journaltitle = {Working Paper},
+  title        = {{Cash Transfers and Migration: Theory and Evidence from a Randomized Controlled Trial}},
+  url          = {https://hal.archives-ouvertes.fr/hal-03512282},
+}
+
+@Comment{jabref-meta: databaseType:biblatex;}

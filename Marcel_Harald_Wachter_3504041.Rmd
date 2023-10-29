@@ -1,0 +1,787 @@
+---
+title: "Using Causal Forests to Estimate Heterogeneous Treatment Effects"
+author: "Marcel Harald Wachter"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+abstract: "Randomized controlled trials gained increasing significance for economics in the past years and decades. With it the need of accurate estimations for heterogenous treatment effects also gained importance. Oftentimes policy makers make decicions based on the estimated treatment effects. If the treatment effect differs based on certain observable characteristics it is important to quantify these effects. Traditionally heterogenous treatment effects were estimated with linear interaction models. But in recent years machine learning techniques, e.g. causal forests, were developed to also estimate heterogenous treatment effects and improve accuracy. This paper compares the results of estimating heterogenous treatment effects with linear interaction models and causal forests. For the simulation study three different data generating processes that simulate observational studies and randomized controlled trials are considered. The results suggest that, compared to a linear interaction model, a causal forest provides the best performance in all considered setups. Subsequently a causal forest is used in an empirical application to estimate heterogenous treatment effects and compare them to a linear interaction model."
+output:
+  pdf_document:
+    number_sections: true
+    citation_package: biblatex
+    extra_dependencies:
+      newpxtext: NULL
+      newpxmath: ["smallerops"]
+      csquotes: NULL
+      svg: NULL
+bibliography: Literature/Literature.bib
+biblio-style: apa
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\pagenumbering{roman}
+\thispagestyle{empty}
+
+\clearpage
+\tableofcontents
+
+\clearpage
+\pagenumbering{arabic}
+# Introduction
+From the 1980s onwards, randomized controlled trials (RCTs), e.g. in development economics, have become increasingly popular as a way to identify causal effects \parencite{Cameron2016}. 
+Currently, the \textcite{ARR2022} lists 1886 RCTs as ongoing. 
+From that it becomes clear what significance RCTs take in the current economic research.
+
+The main objective of RCTs is to answer causal questions and to estimate causal effects of treatments on outcomes by overcoming the selection bias \parencite[3899--3903]{Duflo2007}.
+Following the potential outcome framework \parencites{Rubin1974}{Rubin1977}{Holland1986}, the causal effect for unit \(i\) can be denoted by \(\tau_i = Y_{1i} - Y_{0i}\) where \(Y_{1i}\) denotes the potential outcome if \(i\) receives the treatment and \(Y_{0i}\) if it does not. 
+An additional parameter of interest is the average treatment effect (ATE) defined by \(\tau_{ATE} = E[Y_{1i} - Y_{0i}]\) which describes the mean outcome difference between the treatment and control group, i.e. the average treatment effect across everyone in the population. 
+One of the objectives of RCTs is to estimate the ATE. 
+In addition to the ATE our interest often also lies on the size of the treatment effect for various subgroups. 
+In the potential outcome framework this effect is called conditional average treatment effect (CATE) and is denoted by \(\tau(x) = E[Y_{1i} - Y_{0i} \mid X_i = x]\) where \(X_i\) is a vector of covariates. But RCTs are not the only source of data for conducting estimations of heterogeneous treatment effects (HTEs), observational studies with quasi-experiments play an important role in causal inference too.
+
+The effects of interventions are often heterogeneous depending on the population they affect \parencite[3948]{Duflo2007}. The conclusions drawn from experiments may vary significantly depending on the heterogeneity of the effect. Traditionally, CATE are obtained by means of subgroup analyses or by a linear model where interactions between the treatment variable and explanatory variables of interest are specified. However both of these method have their drawbacks. Subgroup analyses suffer can suffer from low power. Linear models with interactions on the other hand can become unfeasible when the number of covariates is high. This stems from the fact that not only do we have to include interactions between treatment and covariates but also for all possible combinations of covariates with and without treatment. Machine learning techniques such as causal forests could improve the estimation of HTEs.
+
+The objective of this term paper is to compare the estimation accuracy of causal forests and linear interaction model for HTEs. For this purpose three setups with different data generating processes, that approximate observational studies as well as RCTs, are considered. After depicting the accuracy and performance of each setup, a simulation study is conducted to obtain an empirical distribution of the estimates.
+
+The remainder of the paper is organised as follows. Section 2 briefly describes causal forests. In Section 3 a simulation study is conducted. In Section 4 an empirical application is considered. Section 5 concludes. 
+
+
+# Causal Forests
+A causal forest, first proposed by \textcite{Wager2018}, is essentially a random forest build from causal trees who averages the predictions of many of these causal trees. 
+Causal trees are decision trees for treatment effects and can be viewed as a variation of regression trees.
+The functionality of regression trees is pretty straightforward. The idea is to segment the predictor space into a number of simple regions and fit a simple model in each one. Use \(p\) to denote the number of inputs and \(N\) for the number of observations. Our data can be described by \(\left( x_i,y_i\right)\) for \(i = 1, 2, \dots, N\) with \(x_i = \left(x_{i1},x_{i2},\dots,x_{ip}\right)\). The algorithm for segmentation and fitting can be described as following. Starting from the entire predictor space a splitting variable \(j\) and split point \(s\) is considered and a pair of half-planes
+\begin{equation}
+R_1(j,s) = \{X \mid X_j \leq s\} \quad \text{and} \quad R_2(j,s) = \{X \mid X_j > s\}
+\end{equation}
+defined. The splitting variable \(j\) and split point \(s\) are chosen, such that they solve
+\begin{equation}
+\min_{j,s} \left[\sum_{x_i \in R_1(j,s)} (y_i - \bar{y_1}(j,s))^2 + \sum_{x_i \in R_2(j,s)} (y_i - \bar{y_2}(j,s))^2\right]
+\end{equation}
+where \(\bar{y_1}(j,s)\) and \(\bar{y_2}(j,s)\) are the mean outcomes in \(R_1(j,s)\) and \(R_2(j,s)\) respectively. The same process is repeated for one of the regions created until a stopping criterion is reached. The response for every region \(R_1, R_2, \dots, R_M\) is modelled as a constant \(c_m\):
+\begin{equation}
+f(x) = \sum_{m = 1}^M c_m I(x \in R_m)
+\end{equation}
+The best \(c_m\) is then simply the average \(y_i\) in region \(R_m\). Causal trees are similar to this process, they differ however in the splitting criterion used which is now trying to find splits optimized for treatment heterogeneity. A causal forest then simply averages the treatment effects of causal trees and aggregates the prediction for the HTE.    
+
+# Simulation Study
+All analyses were conducted in R Version 4.2.1 \parencite{RCT2022}.
+For estimating causal forests the package \enquote{grf} was used \parencite{Tibshirani2021}.
+The data generating process is based on \textcite{Wager2018} and implemented with the package \enquote{htesim} from \textcite{Tibshirani2021}.
+
+## Data Generating Process
+
+Following \textcite[1238]{Wager2018}, three different data generating processes are considered. Each setup differs in their treatment propensity function witch specifies the probability of treatment assignment conditional on observed baseline characteristics, the main effect function which specifies the main effect, and the treatment effect function which specifies the treatment effect. In total four covariates are considered. The models are trained on a training sample with 500 observations and tested on a test sample with 10000 observations.The data generating process is specified through following three functions:
+\begin{equation}
+m(x) = 2^{-1} \mathbb{E}[Y^{(0)} + Y^{(1)} \mid X = x]
+\end{equation}
+for the main effect function. 
+\begin{equation}
+\tau(x) = \mathbb{E}[Y^{(1)} - Y^{(0)} \mid X = x]
+\end{equation}
+for the treatment effect function. And
+\begin{equation}
+e(x) = \mathbb{P}[W = 1 \mid X = x]
+\end{equation}
+for the treatment propensity function. The covariates \(X\) are drawn from a uniform distribution
+\begin{equation}
+X \sim \textit{U}([0,1]^d)
+\end{equation}
+and the outcome variable \(Y\) from
+\begin{equation}
+Y^{0/1} \sim \mathcal{N}(\mathbb{E}[Y^{0/1} \mid X], 1).
+\end{equation}
+See also \textcite[1238]{Wager2018} for more details on the data generating process.
+
+### Setup 1
+This setup resembles an observational study. The treatment propensity function is given by \[e(X) = \frac{1}{4}\left(1 + \beta_{2,4}(X_1)\right),\] the main effect function by \[m(X) = 2 X_1 -1,\] and the treatment effect function by \[\tau(x) = 0.\] 
+
+These functions simulate an often found problem in observational studies that treatment assignment is correlated with potential outcomes \parencite[1238]{Wager2018}.
+
+Clear Workspace
+```{r}
+rm(list = ls())
+```
+
+Loading packages
+```{r message=FALSE}
+library(grf)
+library(htesim)
+library(lattice)
+library(colorspace)
+library(ggplot2)
+library(gridExtra)
+library(modelsummary)
+library(DiagrammeRsvg)
+library(rsvg)
+library(readstata13)
+```
+Setting seed
+```{r}
+options(scipen=999)
+set.seed(123)
+```
+Specifying number of predictors and observations:
+```{r}
+n <- 500
+p <- 4
+```
+
+Data generating process
+```{r}
+dgp1 <- dgp(p = pF_x1, m = mF_x1, t = 0, model = "normal", xmodel = "unif")
+sim1 <- simulate.dgp(object = dgp1, nsim = n, dim = p, nsimtest = 10000)
+x_sim1 <- data.matrix(frame = sim1[, c(1:p)])
+Y_sim1 <- sim1$y
+W_sim1 <- as.numeric(levels(sim1$trt))[sim1$trt]
+```
+Test Data
+```{r}
+test1 <- attr(sim1, "testxdf")
+test1$trt <- NULL
+```
+Train Forest and Linear Model
+```{r}
+cf1 <- causal_forest(X = x_sim1, Y = Y_sim1, W = W_sim1)
+tree1 <- get_tree(forest = cf1, index = 1)
+lin1 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim1)
+```
+Predict CATE for test data
+```{r}
+tau1_hat_cf <- predict(object = cf1, newdata = test1)
+tau1_hat_cf <- as.numeric(tau1_hat_cf$predictions)
+
+test_untr<- test_tr <- test1
+test_untr$trt <- "0"
+test_tr$trt <- "1"
+tau1_hat_lin <- predict(lin1, test_tr) - predict(lin1, test_untr)
+```
+We receive the true effects of the test data by using
+```{r}
+tau1 <- predict(object = dgp1, newdata = test1)[, "tfct"]
+```
+The performance is evaluated by the mean squared error (MSE)
+```{r}
+mse1_cf <- mean((tau1 - tau1_hat_cf)^2)
+mse1_lin <- mean((tau1 - tau1_hat_lin)^2)
+```
+Plots
+```{r}
+res1 <- data.frame(test1, tau1, tau1_hat_cf, tau1_hat_lin, mse1_cf, mse1_lin)
+plot1 <- ggplot(data = res1, aes(X1,X2)) + geom_point(aes(color = tau1)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("True Effect")
+plot2 <- ggplot(data = res1, aes(X1,X2)) + geom_point(aes(color = tau1_hat_cf)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Causal Forest")
+plot3 <- ggplot(data = res1, aes(X1,X2)) + geom_point(aes(color = tau1_hat_lin)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Linear Int. Mod.")
+bwtheme <- standard.theme("pdf", color=FALSE)
+plot13 <- histogram(tau1, par.settings=bwtheme, xlab = "HTE")
+plot14 <- histogram(tau1_hat_cf, par.settings=bwtheme, xlab = "HTE")
+plot15 <- histogram(tau1_hat_lin, par.settings=bwtheme, xlab = "HTE")
+tree1_plot <- plot(tree1)
+cat(DiagrammeRsvg::export_svg(tree1_plot), file = "./Figures/tree1.svg")
+rsvg_pdf(svg = "./Figures/tree1.svg", file = "./Figures/tree1.pdf")
+```
+
+
+```{r}
+datasummary_skim(data = sim1, output = "kableExtra", type = "numeric", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 1 (Numerical Variables)")
+datasummary_skim(data = sim1, output = "kableExtra", type = "categorical", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 1 (Categorical Variables)")
+modelsummary(lin1, coef_omit = "^(?!trt)",
+             gof_omit = "BIC|AIC|RMSE|Log.Lik.", output = "kableExtra",
+             stars = TRUE,
+             title = "Regression Table for the Linear Interaction Model of Setup 1")
+```
+
+```{r, fig.cap="Treatment Effects Generated by Setup 1"}
+grid.arrange(plot1, plot2, plot3, plot13, plot14, plot15, ncol = 3)
+```
+
+Figure 1 depicts the true treatment effect \(\tau(X_i)\) of 10000 random test examples \(X_i\) along with the treatment effects estimated by a causal forest and the linear interaction model for setup 1. The coordinates of the points correspond to the values of the first two covariates \(X_1\) and \(X_2\). The size of the treatment effect is denoted by the colour, where dark means a high and bight a low treatment effect. Both methods struggle to estimate accurate results if one compares them to the true treatment effect. The ATE for both methods is fairly similar to the true ATE.
+
+```{r}
+mean(tau1)
+mean(tau1_hat_cf)
+mean(tau1_hat_lin)
+```
+
+\begin{figure}
+\caption{This figure shows one tree from the causal forest of setup 1. In total, 2000 such trees are grown.}
+\includegraphics[width=\textwidth]{"./Figures/tree1.pdf"}
+\end{figure}
+
+\clearpage
+### Setup 2
+
+The following two setups and their results are similar to setup 1. The main differences are the changes in the data generating process to generate data similar to one a RCT produces.
+
+This setup resembles a randomized experiment. The treatment propensity function is given by \[e(x) = 0.5,\] the main effect function by \[m(x) = 0,\] and the treatment effect function by \[\tau(x) = \varsigma(X1)\varsigma(X2) \quad \text{where} \quad \varsigma(x) = \frac{1}{1 + e^{-20(x-1/3)}}.\] This setup tests how well the methods adapt to heterogeneity in the treatment effect.
+
+```{r}
+dgp2 <- dgp(p = 0.5, m = 0, t = tF_exp_x1_x2, model = "normal", xmodel = "unif")
+sim2 <- simulate.dgp(object = dgp2, nsim = n, dim = p, nsimtest = 10000)
+x_sim2 <- data.matrix(frame = sim2[, c(1:p)])
+Y_sim2 <- sim2$y
+W_sim2 <- as.numeric(levels(sim2$trt))[sim2$trt]
+
+test2 <- attr(sim2, "testxdf")
+test2$trt <- NULL
+
+cf2 <- causal_forest(X = x_sim2, Y = Y_sim2, W = W_sim2)
+tree2 <- get_tree(forest = cf2, index = 1)
+lin2 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim2)
+
+tau2_hat_cf <- predict(object = cf2, newdata = test2)
+tau2_hat_cf <- as.numeric(tau2_hat_cf$predictions)
+
+test_untr<- test_tr <- test2
+test_untr$trt <- "0"
+test_tr$trt <- "1"
+tau2_hat_lin <- predict(lin2, test_tr) - predict(lin2, test_untr)
+
+tau2 <- predict(object = dgp2, newdata = test2)[, "tfct"]
+
+mse2_cf <- mean((tau2 - tau2_hat_cf)^2)
+mse2_lin <- mean((tau2 - tau2_hat_lin)^2)
+
+res2 <- data.frame(test2, tau2, tau2_hat_cf, tau2_hat_lin)
+plot4 <- ggplot(data = res2, aes(X1,X2)) + geom_point(aes(color = tau2)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("True Effect")
+plot5 <- ggplot(data = res2, aes(X1,X2)) + geom_point(aes(color = tau2_hat_cf)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Causal Forest")
+plot6 <- ggplot(data = res2, aes(X1,X2)) + geom_point(aes(color = tau2_hat_lin)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Linear Int. Mod.")
+plot16 <- histogram(tau2, par.settings=bwtheme, xlab = "HTE")
+plot17 <- histogram(tau2_hat_cf, par.settings=bwtheme, xlab = "HTE")
+plot18 <- histogram(tau2_hat_lin, par.settings=bwtheme, xlab = "HTE")
+tree2_plot <- plot(tree2)
+cat(DiagrammeRsvg::export_svg(tree2_plot), file = "./Figures/tree2.svg")
+rsvg_pdf(svg = "./Figures/tree2.svg", file = "./Figures/tree2.pdf")
+```
+
+```{r}
+datasummary_skim(data = sim2, output = "kableExtra", type = "numeric", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 2 (Numerical Variables)")
+datasummary_skim(data = sim2, output = "kableExtra", type = "categorical", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 2 (Categorical Variables)")
+modelsummary(lin2, coef_omit = "^(?!trt)",
+             gof_omit = "BIC|AIC|RMSE|Log.Lik.", output = "kableExtra", 
+             stars = TRUE,
+             title = "Regression Table for the Linear Interaction Model of Setup 2")
+```
+
+```{r, fig.cap="Treatment Effects Generated by Setup 2"}
+grid.arrange(plot4, plot5, plot6, plot16, plot17, plot18, ncol = 3)
+```
+
+Figure 2 depicts the true treatment effect \(\tau(X_i)\) of 10000 random test examples \(X_i\) along with the treatment effects estimated by a causal forest and the linear interaction model for setup 2. The coordinates of the points correspond to the values of the first two covariates \(X_1\) and \(X_2\). The size of the treatment effect is denoted by the colour, where dark means a high and bight a low treatment effect. The predictions of the causal forest are highly accurate in this setting, while the linear interaction model lacks accuracy. This can also be seen in the histograms below. The histogram of the causal forest is far more similar to the histogram of the true effect than the one from the linear interaction model. In terms of the ATE both methods are fairly similar as can bee seen when the ATE is calculated for all three:
+```{r}
+mean(tau2)
+mean(tau2_hat_cf)
+mean(tau2_hat_lin)
+```
+
+
+\begin{figure}
+\caption{This figure shows one tree from the causal forest of setup 2. In total, 2000 such trees are grown.}
+\includegraphics[width=\textwidth]{"./Figures/tree2.pdf"}
+\end{figure}
+
+### Setup 3
+Setup 3 resembles a randomized experiment and is similar to Setup 2. The treatment propensity function is given by \[e(x) = 0.5,\] the main effect function by \[m(x) = 0,\] and the treatment effect function by \[\tau(x) = \varsigma(X1)\varsigma(X2) \quad \text{where} \quad \varsigma(x) = \frac{2}{1 + e^{-12(x-1/2)}}\] which is different compared to setup 2 to account for the fact that random forests can fill the valleys and flatten the peaks of the true \(\tau(x)\) function \parencite[1238]{Wager2018}.
+```{r}
+dgp3 <- dgp(p = 0.5, m = 0, t = tF_exp2_x1_x2, model = "normal", xmodel = "unif")
+sim3 <- simulate.dgp(object = dgp3, nsim = n, dim = p, nsimtest = 10000)
+x_sim3 <- data.matrix(frame = sim3[, c(1:4)])
+Y_sim3 <- sim3$y
+W_sim3 <- as.numeric(levels(sim3$trt))[sim3$trt]
+
+test3 <- attr(sim3, "testxdf")
+test3$trt <- NULL
+
+cf3 <- causal_forest(X = x_sim3, Y = Y_sim3, W = W_sim3)
+tree3 <- get_tree(forest = cf3, index = 1)
+lin3 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim3)
+
+tau3_hat_cf <- predict(object = cf3, newdata = test3)
+tau3_hat_cf <- as.numeric(tau3_hat_cf$predictions)
+
+test_untr<- test_tr <- test3
+test_untr$trt <- "0"
+test_tr$trt <- "1"
+tau3_hat_lin <- predict(lin3, test_tr) - predict(lin3, test_untr)
+
+tau3 <- predict(object = dgp3, newdata = test3)[, "tfct"]
+
+mse3_cf <- mean((tau3 - tau3_hat_cf)^2)
+mse3_lin <- mean((tau3 - tau3_hat_lin)^2)
+
+res3 <- data.frame(test3, tau3, tau3_hat_cf, tau3_hat_lin)
+plot7 <- ggplot(data = res3, aes(X1,X2)) + geom_point(aes(color = tau3)) + 
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+  theme(legend.position = "none") + coord_fixed() + ggtitle("True Effect")
+plot8 <- ggplot(data = res3, aes(X1,X2)) + geom_point(aes(color = tau3_hat_cf)) + 
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Causal Forest")
+plot9 <- ggplot(data = res3, aes(X1,X2)) + geom_point(aes(color = tau3_hat_lin)) +
+  theme_bw() + scale_color_continuous_sequential(palette = "BurgYl") + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + 
+  theme(legend.position = "none") + coord_fixed() + ggtitle("Linear Int. Mod.")
+plot19 <- histogram(tau3, par.settings=bwtheme, xlab = "HTE")
+plot20 <- histogram(tau3_hat_cf, par.settings=bwtheme, xlab = "HTE")
+plot21 <- histogram(tau3_hat_lin, par.settings=bwtheme, xlab = "HTE")
+tree3_plot <- plot(tree3)
+cat(DiagrammeRsvg::export_svg(tree3_plot), file = "./Figures/tree3.svg")
+rsvg_pdf(svg = "./Figures/tree3.svg", file = "./Figures/tree3.pdf")
+```
+
+```{r}
+datasummary_skim(data = sim3, output = "kableExtra", type = "numeric", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 3 (Numerical Variables)")
+datasummary_skim(data = sim3, output = "kableExtra", type = "categorical", 
+                 title = "Summary Statistics of the Simulated Data of
+                 Setup 3 (Categorical Variables)")
+modelsummary(lin3, coef_omit = "^(?!trt)",
+             gof_omit = "BIC|AIC|RMSE|Log.Lik.", output = "kableExtra", 
+             stars = TRUE, 
+             title = "Regression Table for the Linear Interaction Model of Setup 3")
+```
+
+```{r, fig.cap="Treatment Effects Generated by Setup 3"}
+grid.arrange(plot7, plot8, plot9, plot19, plot20, plot21, ncol = 3)
+```
+
+Figure 3 depicts the true treatment effect \(\tau(X_i)\) of 10000 random test examples \(X_i\) along with the treatment effects estimated by a causal forest and the linear interaction model for setup 3. The coordinates of the points correspond to the values of the first two covariates \(X_1\) and \(X_2\). The size of the treatment effect is denoted by the colour, where dark means a high and bight a low treatment effect. Again, the causal forest has an excellent performance while the linear interaction model lacks accuracy. You can also clearly see how the valleys of the true treatment effect are filled and the hills flattened as mentioned above. Again the ATE of both methods is quite near the true ATE but not as good as in the previous setup.
+
+```{r}
+mean(tau3)
+mean(tau3_hat_cf)
+mean(tau3_hat_lin)
+```
+
+\begin{figure}
+\caption{This figure shows one tree from the causal forest of setup 3. In total, 2000 such trees are grown.}
+\includegraphics[width=\textwidth]{"./Figures/tree3.pdf"}
+\end{figure}
+
+These results in this section make it clear that the causal forest is superior to the linear interaction model in all considered setups. This can also be seen if we compare the MSE of both methods in all three setups.
+```{r}
+mse1_cf
+mse1_lin
+mse2_cf
+mse2_lin
+mse3_cf
+mse3_lin
+```
+
+
+How do the methods perform when the number of observations they are trained on varies? For this purpose I calculate the MSE of both methods for a range of training observations from 10 to 500. Results are shown in Figure 7, 8, and 9. I find that when the number of observations exceeds 200 the MSE of the causal forest is always lower compared to the linear interaction model. Depending on available computing power this simulation can take quite some time. Therefore the code is commented out and a file of the produced dataset is available in the data folder of the project.
+
+```{r}
+# mse_cf_obs1 <- rep(NA, times = 500)
+# mse_lin_obs1 <- rep(NA, times = 500)
+# p <- 4
+# for (i in 10:500) {
+#   dgp1 <- dgp(p = pF_x1, m = mF_x1, t = 0, model = "normal", xmodel = "unif")
+#   sim1 <- simulate.dgp(object = dgp1, nsim = i, dim = p, nsimtest = 1000)
+#   x_sim1 <- data.matrix(frame = sim1[, c(1:p)])
+#   Y_sim1 <- sim1$y
+#   W_sim1 <- as.numeric(levels(sim1$trt))[sim1$trt]
+# 
+#   test1 <- attr(sim1, "testxdf")
+#   test1$trt <- NULL
+# 
+#   cf1 <- causal_forest(X = x_sim1, Y = Y_sim1, W = W_sim1)
+#   tree1 <- get_tree(forest = cf1, index = 1)
+#   lin1 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim1)
+# 
+#   tau1_hat_cf <- predict(object = cf1, newdata = test1)
+#   tau1_hat_cf <- as.numeric(tau1_hat_cf$predictions)
+# 
+#   test_untr<- test_tr <- test1
+#   test_untr$trt <- "0"
+#   test_tr$trt <- "1"
+#   tau1_hat_lin <- predict(lin1, test_tr) - predict(lin1, test_untr)
+# 
+#   tau1 <- predict(object = dgp1, newdata = test1)[, "tfct"]
+# 
+#   mse_cf_obs1[i] <- mean((tau1 - tau1_hat_cf)^2)
+#   mse_lin_obs1[i] <- mean((tau1 - tau1_hat_lin)^2)
+# }
+# 
+# ################################################################################
+# 
+# mse_cf_obs2 <- rep(NA, times = 500)
+# mse_lin_obs2 <- rep(NA, times = 500)
+# mse_lin_obs4 <- matrix(data = NA, nrow = 500, ncol = 10)
+# for (i in 10:500) {
+#   dgp2 <- dgp(p = 0.5, m = 0, t = tF_exp_x1_x2, model = "normal", xmodel = "unif")
+#   sim2 <- simulate.dgp(object = dgp2, nsim = i, dim = p, nsimtest = 1000)
+#   x_sim2 <- data.matrix(frame = sim2[, c(1:p)])
+#   Y_sim2 <- sim2$y
+#   W_sim2 <- as.numeric(levels(sim2$trt))[sim2$trt]
+# 
+#   test2 <- attr(sim2, "testxdf")
+#   test2$trt <- NULL
+# 
+#   cf2 <- causal_forest(X = x_sim2, Y = Y_sim2, W = W_sim2)
+#   tree2 <- get_tree(forest = cf2, index = 1)
+#   lin2 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim2)
+# 
+#   tau2_hat_cf <- predict(object = cf2, newdata = test2)
+#   tau2_hat_cf <- as.numeric(tau2_hat_cf$predictions)
+# 
+#   test_untr<- test_tr <- test2
+#   test_untr$trt <- "0"
+#   test_tr$trt <- "1"
+#   tau2_hat_lin <- predict(lin2, test_tr) - predict(lin2, test_untr)
+# 
+#   tau2 <- predict(object = dgp2, newdata = test2)[, "tfct"]
+# 
+#   mse_cf_obs2[i] <- mean((tau2 - tau2_hat_cf)^2)
+#   mse_lin_obs2[i] <- mean((tau2 - tau2_hat_lin)^2)
+# }
+# 
+# ################################################################################
+# 
+# mse_cf_obs3 <- rep(NA, times = 500)
+# mse_lin_obs3 <- rep(NA, times = 500)
+# for (i in 10:500) {
+#   dgp3 <- dgp(p = 0.5, m = 0, t = tF_exp2_x1_x2, model = "normal", xmodel = "unif")
+# sim3 <- simulate.dgp(object = dgp3, nsim = i, dim = p, nsimtest = 1000)
+# x_sim3 <- data.matrix(frame = sim3[, c(1:4)])
+# Y_sim3 <- sim3$y
+# W_sim3 <- as.numeric(levels(sim3$trt))[sim3$trt]
+# 
+# test3 <- attr(sim3, "testxdf")
+# test3$trt <- NULL
+# 
+# cf3 <- causal_forest(X = x_sim3, Y = Y_sim3, W = W_sim3)
+# tree3 <- get_tree(forest = cf3, index = 1)
+# lin3 <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = sim3)
+# 
+# tau3_hat_cf <- predict(object = cf3, newdata = test3)
+# tau3_hat_cf <- as.numeric(tau3_hat_cf$predictions)
+# 
+# test_untr<- test_tr <- test3
+# test_untr$trt <- "0"
+# test_tr$trt <- "1"
+# tau3_hat_lin <- predict(lin3, test_tr) - predict(lin3, test_untr)
+# 
+# tau3 <- predict(object = dgp3, newdata = test3)[, "tfct"]
+# 
+# mse_cf_obs3[i] <- mean((tau3 - tau3_hat_cf)^2)
+# mse_lin_obs3[i] <- mean((tau3 - tau3_hat_lin)^2)
+# }
+# mse_cf_obs1 <- mse_cf_obs1[-(1:9)]
+# mse_cf_obs2 <- mse_cf_obs2[-(1:9)]
+# mse_cf_obs3 <- mse_cf_obs3[-(1:9)]
+# mse_lin_obs1 <- mse_lin_obs1[-(1:9)]
+# mse_lin_obs2 <- mse_lin_obs2[-(1:9)]
+# mse_lin_obs3 <- mse_lin_obs3[-(1:9)]
+# ntrain <- 10:500
+# mse_obs <- data.frame(mse_cf_obs1, mse_cf_obs2, mse_cf_obs3, mse_lin_obs1,
+#                        mse_lin_obs2, mse_lin_obs3, ntrain)
+# saveRDS(mse_obs, file = "./Data/mse_obs.rds")
+mse_obs <- readRDS("./Data/mse_obs.rds")
+```
+
+```{r, fig.cap="Computed MSE for Different Number of Training Observations (Setup 1)"}
+plot(mse_obs$ntrain, mse_obs$mse_cf_obs1, type = "l", xlab = "Number of Observations",
+     ylab = "MSE")
+lines(mse_obs$ntrain, mse_obs$mse_lin_obs1, col = 2)
+legend("topright", legend = c("CF", "Lin"), lty = c(1,1), col = c(1,2))
+```
+
+```{r, fig.cap="Computed MSE for Different Number of Training Observations (Setup 2)"}
+plot(mse_obs$ntrain, mse_obs$mse_cf_obs2, type = "l", xlab = "Number of Observations",
+     ylab = "MSE")
+lines(mse_obs$ntrain, mse_obs$mse_lin_obs2, col = 2)
+legend("topright", legend = c("CF", "Lin"), lty = c(1,1), col = c(1,2))
+```
+
+```{r, fig.cap="Computed MSE for Different Number of Training Observations (Setup 3)"}
+plot(mse_obs$ntrain, mse_obs$mse_cf_obs3, type = "l", xlab = "Number of Observations",
+     ylab = "MSE")
+lines(mse_obs$ntrain, mse_obs$mse_lin_obs3, col = 2)
+legend("topright", legend = c("CF", "Lin"), lty = c(1,1), col = c(1,2))
+```
+ 
+ Next we want see how the methods perform in a large number of simulations.
+
+\clearpage
+
+## Simulation
+The structure of the simulation study follows \textcites{Wager2018}{Dandl2022}.
+For the simulation study we compute 1000 simulations of each of the setups described above, thus we generate 3000 simulations in total. The number of observations in the test and training sample is 500 and 1000 respectively. The estimation is conducted twice (by the two functions below) once with the causal forest and once with the linear interaction model. Because we set the same seed for both data generating processes, both methods are computed and evaluated with the same data. 
+
+To evaluate the two models the MSE is computed for every simulation. Causal forests are grown with 2000 trees. In total, we obtain a dataset with 6000 observation that contains the parameters of the models as well as the MSE for each simulation. Again depending on the available computing power this simulation can take some time. Therefore the code is commented out and the produced dataset is available as a file in the data folder.
+
+```{r}
+# n_small <- 1000
+# n_large <- as.integer(3 * n_small)
+# n_p <- 4L #Also change formula for lm at line 347
+# obs_test <- 1000L
+# Setup <- c(rep(x = "1", times = n_small), rep(x = "2", times = n_small),
+#            rep(x = "3", times = n_small))
+# setup <- factor(x = setup, levels = c(1, 2, 3),
+#                 labels = c("Setup 1", "Setup 2", "Setup 3"))
+# p <- c(rep(x = "pF_x1", times = n_small), rep(x = 0.5, times = n_small),
+#        rep(x = 0.5, times = n_small))
+# m <- c(rep(x = "mF_x1", times = n_small), rep(x = 0, times = n_small),
+#        rep(x = 0, times = n_small))
+# t <- c(rep(x = 0, times = n_small), rep(x = "tF_exp_x1_x2", times = n_small),
+#        rep(x = "tF_exp2_x1_x2", times = n_small))
+# sd <- rep(x = 1, times = n_large)
+# ol <- rep(x = 0, times = n_large)
+# model <- rep(x = "normal", times = n_large)
+# xmodel <- rep(x = "unif", times = n_large)
+# nsim <- rep(x = 500, times = n_large)
+# dim <- rep(x = n_p, times = n_large)
+# nsimtest <- rep(x = obs_test, times = n_large)
+# method <- rep(x = 1, times = n_large)
+# method <- factor(x = method, levels = 1, labels = "CF")
+# id <- as.factor(c(rep(x = 1, times = n_small), rep(x = 2, times = n_small),
+#                   rep(x = 3, times = n_small)))
+# id <- factor(id, levels = c(1, 2, 3), labels = c("CF/1", "CF/2", "CF/3"))
+# #sim_cf <- data.frame(setup, p, m, t, sd, ol, model, xmodel, nsim, dim, nsimtest,
+# #                     method, id)
+# 
+# set.seed(123)
+# run_cf <- function(i) {
+#   row <- sim_cf[1, ]
+#   dgpA <- do.call(what = dgp,
+#                   args = as.list(row)[c("p", "m", "t", "sd", "ol", "model",
+#                                            "xmodel")])
+#   simA <- do.call(what = simulate,
+#                   args = c(list(object = dgpA),
+#                            as.list(row)[c("nsim", "dim", "seed", "nsimtest")]))
+#   x_simA <- data.matrix(frame = simA[, c(1:n_p)])
+#   Y_simA <- simA$y
+#   W_simA <- as.numeric(levels(simA$trt))[simA$trt]
+# 
+#   testA <- attr(simA, "testxdf")
+#   testA$trt <- NULL
+# 
+#   cfA <- causal_forest(X = x_simA, Y = Y_simA, W = W_simA)
+# 
+#   tauA_hat_cf <- predict(object = cfA, newdata = testA)
+#   tauA_hat_cf <- as.numeric(tauA_hat_cf$predictions)
+# 
+#   tauA <- predict(object = dgpA, newdata = testA)[, "tfct"]
+# 
+#   mse_cf <- mean((tauA - tauA_hat_cf)^2)
+#   return(mse_cf)
+# }
+# mse_cf <- sapply(X = 1:n_large, FUN = run_cf)
+# sim_cf$mse <- mse_cf
+# 
+# method <- rep(x = 2, times = n_large)
+# method <- factor(x = method, levels = 2, labels = "Lin")
+# id <- c(rep(x = 4, times = n_small), rep(x = 5, times = n_small),
+#                   rep(x = 6, times = n_small))
+# id <- factor(id, levels = c(4, 5, 6), labels = c("Lin/1", "Lin/2", "Lin/3"))
+# sim_lin <- data.frame(setup, p, m, t, sd, ol, model, xmodel, nsim, dim,
+#                      nsimtest, method, id)
+# 
+# set.seed(123)
+# run_lin <- function(i) {
+#   row <- sim_lin[1, ]
+#   dgpA <- do.call(what = dgp,
+#                   args = as.list(row)[c("p", "m", "t", "sd", "ol", "model",
+#                                            "xmodel")])
+#   simA <- do.call(what = simulate,
+#                   args = c(list(object = dgpA),
+#                            as.list(row)[c("nsim", "dim", "nsimtest")]))
+# 
+#   testA <- attr(simA, "testxdf")
+#   testA$trt <- NULL
+# 
+#   linA <- lm(formula = y ~ (trt + X1 + X2 + X3 + X4)^2, data = simA)
+# 
+#   test_untr<- test_tr <- testA
+#   test_untr$trt <- "0"
+#   test_tr$trt <- "1"
+#   tauA_hat_lin <- predict(linA, test_tr) - predict(linA, test_untr)
+# 
+#   tauA <- predict(object = dgpA, newdata = testA)[, "tfct"]
+# 
+#   mse_lin <- mean((tauA - tauA_hat_lin)^2)
+#   return(mse_lin)
+# }
+# mse_lin <- sapply(X = 1:n_large, FUN = run_lin)
+# sim_lin$mse <- mse_lin
+# 
+# sim <- rbind(sim_cf, sim_lin)
+# saveRDS(sim, file = "./Data/sim.rds")
+sim <- readRDS(file = "./Data/sim.rds")
+```
+
+### Results
+
+```{r, fig.cap="MSE of the Two Methods for All Setups"}
+plot10 <- bwplot(x = mse ~ method | setup, data = sim, par.settings=bwtheme)
+plot10
+```
+
+```{r}
+msetab <- aggregate(x = mse ~ id, data = sim, FUN = mean)
+knitr::kable(msetab, caption = "Average MSE of the Two Methods for All Setups",
+             col.names = c("Method/Setup", "MSE"))
+
+```
+Figure 10 and Table 10 describe the average MSE for both methods and all setups. The histogram and the calculated MSE confirms what we already saw in the section before: The estimations of the causal forest are closer to the true HTE than the estimations by the linear interaction model. This result holds for all three setups.
+
+\clearpage
+# Empirical Application
+To apply and compare the two methods in an empirical setting we consider the study from \textcite{Gazeaud2021} where they the investigate the link between cash transfers and international migration. The authors conducted an RCT in Comoros were randomly selected households received up to US\$320 as part of a cash-for-work program. The data is from \textcite{Gazeaud2021a}. The most important variables are described in Table 11. Summary statistics are reported in Table 12 and 13. 
+<!-- The outcome migmhr\_dum \textquote[{\cite[41]{Gazeaud2021}}]{is a dummy equal to one if at least one household member migrated to Mayotte after the baseline survey and is still in Mayotte during the follow-up survey}. -->
+
+\begin{table}[!htbp]
+  \caption{Description of Variables}
+  \centering
+  \begin{tabular*}{0.5\textwidth}{@{\extracolsep{5pt}}lp{8cm}c} 
+  \\[-1.8ex]\hline 
+  \hline \\[-1.8ex] 
+  Variable Name & \multicolumn{1}{l}{Description}\\ 
+  \hline \\[-1.8ex] 
+  migmhr\_dum & Migration to Mayotte\\
+  treated & Treatment indicator\\ 
+  bl\_network\_mayotte\_hh & Migration network\\ 
+  bl\_mig\_willingness &Willing to migrate\\ 
+  bl\_working\_age\_adult\_n & Working age adults (N)\\ 
+  bl\_ihsconsopea & Consumption\\ 
+  bl\_schooling & Schooling\\ 
+  bl\_treated\_tot\_cont & CFW rounds (N)\\ 
+  \hline \\[-1.8ex] 
+  \end{tabular*} 
+  \end{table}
+  
+```{r warning=FALSE}
+migration_prepared <- read.dta13(file = "./Data/migration_prepared.dta",
+                                 generate.factors = TRUE, convert.factors = TRUE)
+migration_prepared <- migration_prepared[migration_prepared$attrition != 1, ]
+
+migration_prepared <- migration_prepared[, c("bl_network_mayotte_hh",
+                                             "bl_mig_willingness",
+                                             "bl_working_age_adult_n",
+                                             "bl_ihsconsopea", "bl_schooling",
+                                             "bl_treated_tot_cont",
+                                             "treated", "migmhr_dum")]
+X_mig <- data.matrix(migration_prepared[, -c(7, 8)])
+Y_mig <- migration_prepared$migmhr_dum
+W_mig <- migration_prepared$treated
+
+lm1_mig <- lm(formula = migmhr_dum ~ (treated + bl_network_mayotte_hh + 
+                                        bl_mig_willingness +
+                                        bl_working_age_adult_n +
+                                        bl_ihsconsopea + bl_schooling +
+                                        bl_treated_tot_cont)^2, data = migration_prepared)
+
+test_tr_mig <- test_untr_mig <- migration_prepared[, -8]
+test_tr_mig$treated <- 0
+test_untr_mig$treated <- 1
+
+tau_hat_lin_mig <- predict(lm1_mig,
+                           newdata = test_tr_mig) - predict(lm1_mig,
+                                                            newdata = test_untr_mig)
+
+cf_mig <- causal_forest(X = X_mig, Y = Y_mig, W = W_mig)
+tree_mig <- get_tree(forest = cf_mig, index = 1)
+
+tau_hat_cf_mig <- predict(object = cf_mig, newdata = X_mig)
+tau_hat_cf_mig <- as.numeric(tau_hat_cf_mig$predictions)
+
+res_mig <- migration_prepared
+res_mig$tau_hat_cf_mig <- tau_hat_cf_mig
+res_mig$tau_hat_lin_mig <- tau_hat_lin_mig
+```
+
+```{r}
+datasummary_skim(data = migration_prepared, output = "kableExtra",
+                 histogram = FALSE, fmt = 2, 
+                 title = "Summary Statistics for Numerical Variables", 
+                 type = "numeric")
+```
+
+```{r}
+datasummary_skim(data = migration_prepared, output = "kableExtra",
+                 histogram = FALSE, fmt = 2, 
+                 title = "Summary Statistics for Categorical Variables", 
+                 type = "categorical")
+```
+
+In Table A14 of \textcite{Gazeaud2021b} the author estimate the heterogeneous treatment effects. No coefficient is significant, but as the authors notes it seems that the effect is stronger for people who are willing to migrate and receive more cash-for-work funds.
+
+In addition to this table a linear model with interactions of all explanatory variables in Table 11 is estimated. Results are reported in Table 14 and support the prediction of the author for the most important variables. 
+```{r}
+modelsummary(lm1_mig, vcov = "HC3", coef_omit = "^(?!treated)",
+             gof_omit = "BIC|AIC|RMSE|Log.Lik.", output = "kableExtra",
+             stars = TRUE, 
+             title = "Regression Table With Interactions of the Variables in Table 11")
+```
+The plotted histograms and boxplots of the estimated HTE for both methods, seen in Figure 11 and 12, show that the causal forest predicts overall positive HTE but they are close to zero. The linear interaction model predicts overall negative HTE ranging from -0.08 to 0.
+
+```{r, fig.cap="Histogram of the Estimated HTEs for Both Methods"}
+plot11 <- histogram(tau_hat_cf_mig, type = "count", xlab = "Estimated HTE",
+                    main = "Causal Forest", par.settings=bwtheme)
+plot12 <- histogram(tau_hat_lin_mig, type = "count", xlab = "Estimated HTE",
+                    main = "Linear Interaction Model", par.settings=bwtheme)
+grid.arrange(plot11, plot12, ncol = 2)
+```
+```{r, fig.cap="Boxplot of the Estimated HTE for both methods"}
+par(mfrow = c(1, 2))
+boxplot(tau_hat_cf_mig, ylab = "Estimated HTE", main = "Causal Forest")
+boxplot(tau_hat_lin_mig, ylab = "Estimated HTE", main = "Linear Interaction Model")
+```
+
+Plotting One Causal Tree
+```{r, fig.cap="One Causal Tree of the Forest"}
+tree_mig_plot <- plot(tree_mig)
+cat(DiagrammeRsvg::export_svg(tree_mig_plot), file = './Figures/tree_mig.svg')
+rsvg_pdf(svg = "./Figures/tree_mig.svg", file = "./Figures/tree_mig.pdf")
+```
+
+Looking at the variable importance estimated by the causal forest we can see that contrary to the linear model in the paper, the most important variables are consumption, the number of working age adults, and additional cash-for-work funds. 
+\clearpage
+```{r, fig.cap="Variable Importance computed by the Causal Forest"}
+variable_importance(forest = cf_mig)
+```
+
+Calculating the estimated ATE of the causal forest confirms what we saw in the histogram above that the ATE of the causal forest is positive but close to zero and the ATE of the linear interaction model is negative and close to zero. 
+```{r, fig.cap="Estiamted ATE by the Causal Forest"}
+mean(tau_hat_cf_mig)
+mean(tau_hat_lin_mig)
+```
+
+\begin{figure}
+\caption{This figure shows one tree from the causal forest. In total, 2000 such trees are grown.}
+\includegraphics[width=\textwidth]{"./Figures/tree_mig.pdf"}
+\end{figure}
+
+# Conclusion
+Throughout this analysis it became clear that a causal forest outperforms the linear interaction model when the interest lies in HTE. Three data generating processes were considered that resemble observational studies and RCTs in the real world. For every data generating process the causal forest delivered more accurate predictions of the true treatment effect. For the empirical application we found conflicting results. Overall the HTEs estimated by the causal forest are positive, while the HTEs estimated by the linear interaction model are negative. Contrary to the author the most important variables are not the willingness to migrate and more cash-for-work funds, but rather consumption and the number of working age adults with additional cash-for-work funds only at the third place.
+
+
+
